@@ -1,0 +1,52 @@
+﻿@page "/"
+
+@using MPGame.Shared.Models
+
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+<PageTitle>Index</PageTitle>
+
+<h1>Join a lobby or create a new one</h1>
+
+@if (lobbies == null) {
+    <span>Loading...</span>
+} else {
+    <span class="lobbyCard" onclick="@CreateLobbyAsync">Create new lobby</span>
+    @foreach (var lobby in lobbies) {
+        <a href="@lobby.Uri">
+            <span class="lobbyCard">@lobby.Title</span>
+        </a>
+    }
+}
+
+@code {
+    private LobbyInfo[]? lobbies;
+
+    protected override async Task OnInitializedAsync()
+    {
+        lobbies = await Http.GetFromJsonAsync<LobbyInfo[]>(
+            Configuration["apiBaseUrl"] + "/lobbies");
+    }
+
+    private async Task CreateLobbyAsync() {
+        Console.WriteLine("CreateLobbyAsync()");
+        var response = await Http.PostAsync(
+            Configuration["apiBaseUrl"] + "/lobbies", null);
+
+        if(!response.IsSuccessStatusCode) {
+            return;
+        }
+
+        var newLobby = await response.Content.ReadFromJsonAsync<LobbyInfo>();
+
+        if(newLobby is null) {
+            return;
+        }
+
+        Console.WriteLine($"New lobby: {newLobby}");
+
+        Navigation.NavigateTo(newLobby.Uri);
+    }
+}

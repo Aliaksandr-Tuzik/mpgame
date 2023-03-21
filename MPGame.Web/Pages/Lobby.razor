@@ -1,0 +1,110 @@
+@page "/lobby/{lobbyId}"
+
+@using Microsoft.AspNetCore.SignalR.Client
+@using MPGame.Shared.Models
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@implements IAsyncDisposable
+
+<PageTitle>@LobbyId</PageTitle>
+
+<h1>@LobbyId</h1>
+
+<div class="gameContainer"></div>
+
+<div class="chatContainer">
+<h2>Chat @if(userName is not null){ <span>[@userName]</span> }</h2>
+<ul>
+    @foreach (var player in lobbyDetails.Players)
+    {
+        <li>@player</li>
+    }
+</ul>
+<ul>
+    @foreach (var observer in lobbyDetails.Observers)
+    {
+        <li>@observer</li>
+    }
+</ul>
+<div class="form-group">
+    <label>
+        Message:
+        <input @bind="messageInput" size="50" />
+    </label>
+</div>
+<button @onclick="Send" disabled="@(!IsConnected)">Send</button>
+
+<hr>
+
+<ul id="messagesList">
+    @foreach (var message in messages)
+    {
+        <li>@message</li>
+    }
+</ul>
+</div>
+
+@code {
+    [Parameter]
+    public string LobbyId { get; set; }
+    public bool IsConnected =>
+        hubConnection?.State == HubConnectionState.Connected;
+
+    private HubConnection? hubConnection;
+    private List<string> messages = new List<string>();
+    private string? userName;
+    private string? messageInput;
+
+    private LobbyDetails? lobbyDetails;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConnectToLobbyAsync();
+    }
+
+    private async Task ConnectToLobbyAsync() {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri(Configuration["apiBaseUrl"] + "/gamehub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
+        {
+            var encodedMsg = $"{user}: {message}";
+            messages.Add(encodedMsg);
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+        
+        userName = $"Anonymous {hubConnection.ConnectionId.Substring(0, 5)}";
+
+        await hubConnection.SendAsync("JoinLobby", LobbyId);
+
+        await LoadLobbyDetails();
+    }
+
+    private async Task LoadLobbyDetails() {
+        lobbyDetails = await Http.GetFromJsonAsync<LobbyDetails>(
+            Configuration["apiBaseUrl"] + $"/lobbies/{LobbyId}");
+    }
+
+    private async Task Send()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.SendAsync("SendMessage", messageInput);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.SendAsync("LeaveLobby", LobbyId);
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

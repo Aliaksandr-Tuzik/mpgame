@@ -1,0 +1,16 @@
+.chatContainer {
+    border: 1px solid black; 
+    border-radius: 1px;
+    width: 500px; 
+    padding: 10px;
+    position: relative;
+    float: right;
+}
+
+.gameContainer {
+    border: 1px solid black; 
+    border-radius: 1px;
+    height: 600px;
+    width: 600px;
+    float: left;
+}
